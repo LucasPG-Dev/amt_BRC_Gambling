@@ -26,15 +26,10 @@ namespace BRCGambling
             new GamblingSaveData();
         }
 
-        public override void Initialize()
-        {
-            if (Rep == 0)
-                Rep = GamblingManager.StartingRep;
-        }
-
         public override void Read(BinaryReader reader)
         {
             Rep = reader.ReadInt32();
+            UnityEngine.Debug.Log($"[BRCGambling] Read called, loaded Rep={Rep}");
 
             int count = reader.ReadInt32();
             OwnedEffectIds = new List<string>();

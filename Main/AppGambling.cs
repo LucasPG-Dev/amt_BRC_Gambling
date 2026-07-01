@@ -1,6 +1,7 @@
 ﻿using BombRushMP.Plugin;
 using CommonAPI.Phone;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -11,6 +12,19 @@ namespace BRCGambling
         private static Sprite IconSprite = null;
         private PhoneButton repDisplayButton;
         private bool isOpening = false;
+
+        enum AppScreen
+        {
+            MainMenu,
+            CaseOpening,
+            Inventory,
+            ItemConfirm,
+            SellConfirm,
+            Result
+        }
+
+        AppScreen currentScreen = AppScreen.MainMenu;
+        EffectDefinition currentConfirmDef;
 
         public static void Initialize()
         {
@@ -27,6 +41,7 @@ namespace BRCGambling
 
         void ShowMainMenu()
         {
+            currentScreen = AppScreen.MainMenu;
             ScrollView.RemoveAllButtons();
 
             repDisplayButton = PhoneUIUtility.CreateSimpleButton($"REP: {GamblingManager.Rep}");
@@ -43,7 +58,12 @@ namespace BRCGambling
 
         void ShowCaseOpening()
         {
+            currentScreen = AppScreen.CaseOpening;
             ScrollView.RemoveAllButtons();
+
+            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
+            backButton.OnConfirm += () => ShowMainMenu();
+            ScrollView.AddButton(backButton);
 
             var costLabel = PhoneUIUtility.CreateSimpleButton($"A case costs {GamblingManager.SpinCost} REP");
             ScrollView.AddButton(costLabel);
@@ -54,11 +74,9 @@ namespace BRCGambling
                 confirmButton.OnConfirm += () =>
                 {
                     GamblingManager.Rep -= GamblingManager.SpinCost;
-
                     ScrollView.RemoveAllButtons();
                     var openingLabel = PhoneUIUtility.CreateSimpleButton("Opening...");
                     ScrollView.AddButton(openingLabel);
-
                     StartCoroutine(LaunchOverlay());
                 };
                 ScrollView.AddButton(confirmButton);
@@ -71,10 +89,24 @@ namespace BRCGambling
             {
                 var noRepButton = PhoneUIUtility.CreateSimpleButton("Not enough REP, boss up and get some.");
                 ScrollView.AddButton(noRepButton);
+            }
 
-                var backButton = PhoneUIUtility.CreateSimpleButton("Back");
-                backButton.OnConfirm += () => ShowMainMenu();
-                ScrollView.AddButton(backButton);
+            // Multi open option
+            if (GamblingManager.Rep >= 1000)
+            {
+                var multiLabel = PhoneUIUtility.CreateSimpleButton("── Multi Open ──");
+                ScrollView.AddButton(multiLabel);
+
+                var multiButton = PhoneUIUtility.CreateSimpleButton("Open x10 Cases (1000 REP)");
+                multiButton.OnConfirm += () =>
+                {
+                    GamblingManager.Rep -= 1000;
+                    ScrollView.RemoveAllButtons();
+                    var openingLabel = PhoneUIUtility.CreateSimpleButton("Opening 10 cases...");
+                    ScrollView.AddButton(openingLabel);
+                    StartCoroutine(LaunchMultiOverlay());
+                };
+                ScrollView.AddButton(multiButton);
             }
         }
 
@@ -90,7 +122,13 @@ namespace BRCGambling
 
         void ShowResult(RewardTier result, EffectDefinition effect)
         {
+            currentScreen = AppScreen.Result;
             ScrollView.RemoveAllButtons();
+
+            // Back button at top
+            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
+            backButton.OnConfirm += () => ShowMainMenu();
+            ScrollView.AddButton(backButton);
 
             string itemName = effect != null ? effect.DisplayName : "Unknown Item";
 
@@ -134,17 +172,7 @@ namespace BRCGambling
 
                     var inventoryLabel = PhoneUIUtility.CreateSimpleButton("Added to inventory!");
                     ScrollView.AddButton(inventoryLabel);
-
-                    var backButton = PhoneUIUtility.CreateSimpleButton("Back");
-                    backButton.OnConfirm += () => ShowMainMenu();
-                    ScrollView.AddButton(backButton);
                 }
-            }
-            else
-            {
-                var backButton = PhoneUIUtility.CreateSimpleButton("Back");
-                backButton.OnConfirm += () => ShowMainMenu();
-                ScrollView.AddButton(backButton);
             }
 
             if (result == RewardTier.Epic || result == RewardTier.Legendary)
@@ -154,7 +182,7 @@ namespace BRCGambling
                     : $"You opened a <color=red>EPIC {itemName}</color>";
 
                 ChatUI instance = ChatUI.Instance;
-                if (instance != null)
+                if (instance != null && GamblingPlugin.ShowChatMessages.Value)
                     instance.AddMessage(chatMsg);
             }
         }
@@ -163,17 +191,23 @@ namespace BRCGambling
         {
             switch (rarity)
             {
-                case RewardTier.Legendary: return "#FFD700"; // gold
-                case RewardTier.Epic: return "#CC44FF"; // purple
-                case RewardTier.Rare: return "#88CCFF"; // light blue
-                case RewardTier.Common: return "#CCCCCC"; // light grey
+                case RewardTier.Legendary: return "#FFD700"; // yellow/gold
+                case RewardTier.Epic: return "#FF4444"; // red
+                case RewardTier.Rare: return "#CC44FF"; // purple
+                case RewardTier.Common: return "#4488FF"; // blue
                 default: return "#FFFFFF";
             }
         }
 
         void ShowInventory()
         {
+            currentScreen = AppScreen.Inventory;
             ScrollView.RemoveAllButtons();
+
+            // Back button at top
+            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
+            backButton.OnConfirm += () => ShowMainMenu();
+            ScrollView.AddButton(backButton);
 
             var header = PhoneUIUtility.CreateSimpleButton($"Equipped: {GamblingSaveData.Instance.EquippedEffectIds.Count}/{GamblingSaveData.MaxEquipped}");
             ScrollView.AddButton(header);
@@ -185,7 +219,6 @@ namespace BRCGambling
             }
             else
             {
-                // Sort by rarity: Legendary -> Epic -> Rare -> Common
                 var sorted = GamblingSaveData.Instance.OwnedEffectIds
                     .Select(id => EffectRegistry.Get(id))
                     .Where(def => def != null)
@@ -210,19 +243,22 @@ namespace BRCGambling
                     ScrollView.AddButton(itemButton);
                 }
             }
-
-            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
-            backButton.OnConfirm += () => ShowMainMenu();
-            ScrollView.AddButton(backButton);
         }
 
         void ShowItemConfirm(EffectDefinition def)
         {
+            currentScreen = AppScreen.ItemConfirm;
+            currentConfirmDef = def;
             ScrollView.RemoveAllButtons();
 
-            bool equipped = GamblingSaveData.Instance.IsEquipped(def.Id);
+            // Back button at top
+            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
+            backButton.OnConfirm += () => ShowInventory();
+            ScrollView.AddButton(backButton);
 
-            var nameLabel = PhoneUIUtility.CreateSimpleButton($"[{def.Rarity}] {def.DisplayName}");
+            bool equipped = GamblingSaveData.Instance.IsEquipped(def.Id);
+            string color = GetRarityColor(def.Rarity);
+            var nameLabel = PhoneUIUtility.CreateSimpleButton($"<color={color}>[{def.Rarity}] {def.DisplayName}</color>");
             ScrollView.AddButton(nameLabel);
 
             if (equipped)
@@ -254,7 +290,7 @@ namespace BRCGambling
                 }
                 else
                 {
-                    var fullLabel = PhoneUIUtility.CreateSimpleButton("You need to unequip an effect to equip this one.");
+                    var fullLabel = PhoneUIUtility.CreateSimpleButton("You need to unequip an effect first.");
                     ScrollView.AddButton(fullLabel);
                 }
 
@@ -263,15 +299,18 @@ namespace BRCGambling
                 sellButton.OnConfirm += () => ShowSellConfirm(def, sellValue);
                 ScrollView.AddButton(sellButton);
             }
-
-            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
-            backButton.OnConfirm += () => ShowInventory();
-            ScrollView.AddButton(backButton);
         }
 
         void ShowSellConfirm(EffectDefinition def, int sellValue)
         {
+            currentScreen = AppScreen.SellConfirm;
+            currentConfirmDef = def;
             ScrollView.RemoveAllButtons();
+
+            // Back button at top
+            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
+            backButton.OnConfirm += () => ShowItemConfirm(def);
+            ScrollView.AddButton(backButton);
 
             var warningLabel = PhoneUIUtility.CreateSimpleButton($"Sell {def.DisplayName} for {sellValue} REP? This cannot be undone.");
             ScrollView.AddButton(warningLabel);
@@ -288,6 +327,91 @@ namespace BRCGambling
             var cancelButton = PhoneUIUtility.CreateSimpleButton("Cancel");
             cancelButton.OnConfirm += () => ShowItemConfirm(def);
             ScrollView.AddButton(cancelButton);
+        }
+
+        IEnumerator LaunchMultiOverlay()
+        {
+            yield return null;
+            CaseOpeningOverlay.CreateMulti(this, (results) =>
+            {
+                ShowMultiResult(results);
+            });
+        }
+
+        void ShowMultiResult(List<(RewardTier tier, EffectDefinition effect)> results)
+        {
+            currentScreen = AppScreen.Result;
+            ScrollView.RemoveAllButtons();
+
+            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
+            backButton.OnConfirm += () => ShowMainMenu();
+            ScrollView.AddButton(backButton);
+
+            // Separate duplicates from new items
+            var newItems = new List<EffectDefinition>();
+            var duplicates = new List<EffectDefinition>();
+
+            foreach (var (tier, effect) in results)
+            {
+                if (effect == null) continue;
+                bool alreadyOwned = GamblingSaveData.Instance.OwnedEffectIds.Contains(effect.Id);
+                bool alreadyInNewItems = newItems.Any(e => e.Id == effect.Id);
+
+                if (alreadyOwned || alreadyInNewItems)
+                    duplicates.Add(effect);
+                else
+                    newItems.Add(effect);
+            }
+
+            // Add new items to inventory
+            foreach (var item in newItems)
+                GamblingSaveData.Instance.AddEffect(item.Id);
+
+            // Show duplicate sell prompt if any
+            if (duplicates.Count > 0)
+            {
+                int totalSellValue = 0;
+                foreach (var dup in duplicates)
+                    totalSellValue += GamblingManager.GetSellValue(dup.Rarity);
+
+                var dupLabel = PhoneUIUtility.CreateSimpleButton($"You rolled {duplicates.Count} duplicate(s)!");
+                ScrollView.AddButton(dupLabel);
+
+                var sellDupsButton = PhoneUIUtility.CreateSimpleButton($"Sell all duplicates for {totalSellValue} REP");
+                sellDupsButton.OnConfirm += () =>
+                {
+                    GamblingManager.Rep += totalSellValue;
+                    ShowMultiSummary(newItems);
+                };
+                ScrollView.AddButton(sellDupsButton);
+
+                var keepDupsButton = PhoneUIUtility.CreateSimpleButton("Keep (duplicates not saved)");
+                keepDupsButton.OnConfirm += () => ShowMultiSummary(newItems);
+                ScrollView.AddButton(keepDupsButton);
+            }
+            else
+            {
+                ShowMultiSummary(newItems);
+            }
+        }
+
+        void ShowMultiSummary(List<EffectDefinition> newItems)
+        {
+            ScrollView.RemoveAllButtons();
+
+            var backButton = PhoneUIUtility.CreateSimpleButton("Back");
+            backButton.OnConfirm += () => ShowMainMenu();
+            ScrollView.AddButton(backButton);
+
+            var summaryLabel = PhoneUIUtility.CreateSimpleButton($"Added {newItems.Count} new item(s) to inventory!");
+            ScrollView.AddButton(summaryLabel);
+
+            foreach (var item in newItems)
+            {
+                string color = GetRarityColor(item.Rarity);
+                var itemLabel = PhoneUIUtility.CreateSimpleButton($"<color={color}>[{item.Rarity}] {item.DisplayName}</color>");
+                ScrollView.AddButton(itemLabel);
+            }
         }
     }
 }

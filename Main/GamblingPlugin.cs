@@ -15,7 +15,9 @@ namespace BRCGambling
         public static GamblingPlugin Instance;
         public static AssetBundle EffectsBundle;
 
-        
+        public static ConfigEntry<string> DevKey;
+        public static ConfigEntry<bool> ShowChatMessages;
+
         public static Sprite AppIcon;
 
         float effectRefreshTimer = 0f;
@@ -24,12 +26,15 @@ namespace BRCGambling
         {
             Instance = this;
 
-            
+            DevKey = Config.Bind("Dev", "DevKey", "", "Developer access key.");
+            ShowChatMessages = Config.Bind("Settings", "ShowChatMessages", true, "Show REP reward messages in chat.");
+
             GamblingSaveData.Register();
             LoadAppIcon();
             AppGambling.Initialize();
             LoadAssetBundle();
             EffectRegistry.InitializeDefaults();
+
 
             var harmony = new HarmonyLib.Harmony("com.chimp.brcgambling");
             harmony.PatchAll();

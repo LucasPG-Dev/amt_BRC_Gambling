@@ -1,6 +1,7 @@
 ﻿using BombRushMP.Plugin;
 using BombRushMP.Plugin.Gamemodes;
 using HarmonyLib;
+using System;
 
 namespace BRCGambling.Patches
 {
@@ -10,31 +11,15 @@ namespace BRCGambling.Patches
         [HarmonyPostfix]
         private static void Postfix(GraffitiRace __instance)
         {
-            UnityEngine.Debug.Log("[BRCGambling] GraffitiRace.OnEnd fired!");
-
             ClientController instance = ClientController.Instance;
-            if (instance == null)
-            {
-                UnityEngine.Debug.Log("[BRCGambling] ClientController is null");
-                return;
-            }
+            if (instance == null) return;
 
             var lobby = instance.ClientLobbyManager?.CurrentLobby;
-            if (lobby == null)
-            {
-                UnityEngine.Debug.Log("[BRCGambling] No lobby found");
-                return;
-            }
+            if (lobby == null) return;
 
             ushort localID = instance.LocalID;
             int maxScore = GamblingManager.MaxPossibleScore;
-            UnityEngine.Debug.Log($"[BRCGambling] localID={localID} maxScore={maxScore}");
-
-            if (maxScore <= 0)
-            {
-                UnityEngine.Debug.Log("[BRCGambling] maxScore is 0, aborting");
-                return;
-            }
+            if (maxScore <= 0) return;
 
             float playerScore = 0f;
             bool won = false;
@@ -46,7 +31,6 @@ namespace BRCGambling.Patches
                     byte team = lobby.LobbyState.Players[localID].Team;
                     float teamScore = lobby.LobbyState.GetScoreForTeam(team);
                     won = teamScore >= maxScore && teamScore > 0f;
-                    UnityEngine.Debug.Log($"[BRCGambling] Team mode - team={team} teamScore={teamScore} won={won}");
                 }
             }
             else
@@ -55,42 +39,53 @@ namespace BRCGambling.Patches
                 {
                     playerScore = lobby.LobbyState.Players[localID].Score;
                     won = playerScore >= maxScore && playerScore > 0f;
-                    UnityEngine.Debug.Log($"[BRCGambling] Solo mode - playerScore={playerScore} maxScore={maxScore} won={won}");
-                }
-                else
-                {
-                    UnityEngine.Debug.Log($"[BRCGambling] LocalID {localID} not found in players");
                 }
             }
 
+            ChatUI chatUI = ChatUI.Instance;
+
             if (won)
             {
-                GamblingManager.Rep += 25;
+                GamblingManager.ConsecutiveLosses = 0;
 
                 int lobbyPlayerCount = lobby.LobbyState.Players.Count;
                 int bonusRep = 0;
 
-                if (lobbyPlayerCount == 2)
-                    bonusRep = 25;
-                else if (lobbyPlayerCount == 3)
-                    bonusRep = 50;
-                else if (lobbyPlayerCount >= 4)
-                    bonusRep = 75;
+                if (lobbyPlayerCount == 2) bonusRep = 50;
+                else if (lobbyPlayerCount == 3) bonusRep = 75;
+                else if (lobbyPlayerCount >= 4) bonusRep = 100;
 
-                GamblingManager.Rep += bonusRep;
+                GamblingManager.Rep += 25 + bonusRep;
 
-                ChatUI chatUI = ChatUI.Instance;
-                if (chatUI != null)
+                if (chatUI != null && GamblingPlugin.ShowChatMessages.Value)
                 {
                     if (bonusRep > 0)
                         chatUI.AddMessage($"<color=blue>+{25 + bonusRep} REP for gracing with {lobbyPlayerCount} players! Total REP: {GamblingManager.Rep}</color>");
                     else
-                        chatUI.AddMessage($"<color=yellow>+25 REP for winning a GRACE! Total REP: {GamblingManager.Rep}</color>");
+                        chatUI.AddMessage($"<color=green>+25 REP for winning a GRACE! Total REP: {GamblingManager.Rep}</color>");
+                }
+            }
+            else
+            {
+                GamblingManager.ConsecutiveLosses++;
+
+                if (GamblingManager.ConsecutiveLosses >= 7)
+                {
+                    int tags = (int)playerScore;
+                    int pityRep = 0;
+
+                    if (tags < 6) pityRep = 15;
+                    else if (tags >= 6 && tags < 8) pityRep = 25;
+                    else if (tags >= 8) pityRep = 40;
+
+                    GamblingManager.Rep += pityRep;
+
+                    if (chatUI != null && GamblingPlugin.ShowChatMessages.Value)
+                        chatUI.AddMessage($"<color=yellow>[Pity] +{pityRep} REP for {tags} tags after {GamblingManager.ConsecutiveLosses} losses! Total REP: {GamblingManager.Rep}</color>");
                 }
             }
 
             GamblingManager.MaxPossibleScore = 0;
-
             EffectTriggerManager.PlayOneShot(EffectTrigger.OnGraceEnd);
         }
     }

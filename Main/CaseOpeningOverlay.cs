@@ -7,20 +7,35 @@ namespace BRCGambling
 {
     public class CaseOpeningOverlay : MonoBehaviour
     {
-        const int VisibleCount = 5;
-        const float ItemWidth = 80f;
-        const float ItemHeight = 100f;
-        const float ItemSpacing = 10f;
+        // Update constants at the top of the class for better scaling
+        const int VisibleCount = 7;
+        const float ItemWidth = 120f;
+        const float ItemHeight = 140f;
+        const float ItemSpacing = 12f;
         const float PanelWidth = (ItemWidth + ItemSpacing) * VisibleCount;
-        const float PanelHeight = ItemHeight + 40f;
+        const float PanelHeight = ItemHeight + 60f;
 
-        static readonly Color ColorCommon = new Color(0.4f, 0.6f, 1f);
-        static readonly Color ColorRare = new Color(0.6f, 0.2f, 0.8f);
-        static readonly Color ColorEpic = new Color(0.9f, 0.2f, 0.2f);
-        static readonly Color ColorLegendary = new Color(1f, 0.8f, 0f);
+        // Multi open constants
+        const float MultiItemWidth = 100f;
+        const float MultiItemHeight = 80f;
+        const float MultiItemSpacing = 8f;
+        const int MultiVisibleCount = 7;
+        const float MultiPanelWidth = (MultiItemWidth + MultiItemSpacing) * MultiVisibleCount;
+        const float MultiColumnGap = 20f;
+        const float MultiStaggerDelay = 0.4f;
+        bool isMultiOpen = false;
+        System.Action<List<(RewardTier, EffectDefinition)>> onMultiComplete;
+        List<RectTransform> multiReelStrips = new List<RectTransform>();
+        List<RectTransform> multiDividers = new List<RectTransform>();
+
+        static readonly Color ColorCommon = new Color(0.27f, 0.53f, 1f);    // blue
+        static readonly Color ColorRare = new Color(0.8f, 0.27f, 1f);     // purple
+        static readonly Color ColorEpic = new Color(1f, 0.27f, 0.27f);    // red
+        static readonly Color ColorLegendary = new Color(1f, 0.84f, 0f);       // yellow/gold
 
         GameObject overlayRoot;
         RectTransform reelStrip;
+        RectTransform reelContainerRt;
         RectTransform dividerRect;
         System.Action<RewardTier, EffectDefinition> onComplete;
         bool isSpinning = false;
@@ -29,8 +44,8 @@ namespace BRCGambling
         {
             RewardTier.Common, RewardTier.Common, RewardTier.Common, RewardTier.Common,
             RewardTier.Common, RewardTier.Common, RewardTier.Common, RewardTier.Common,
-            RewardTier.Rare, RewardTier.Rare, RewardTier.Rare,
-            RewardTier.Epic,
+            RewardTier.Rare, RewardTier.Rare, RewardTier.Rare, RewardTier.Rare,
+            RewardTier.Epic, RewardTier.Epic,
             RewardTier.Legendary
         };
 
@@ -43,54 +58,107 @@ namespace BRCGambling
             return overlay;
         }
 
-        void Build()
+        public static CaseOpeningOverlay CreateMulti(MonoBehaviour host, System.Action<List<(RewardTier, EffectDefinition)>> onMultiComplete)
+        {
+            GameObject go = new GameObject("CaseOpeningOverlayMulti");
+            CaseOpeningOverlay overlay = go.AddComponent<CaseOpeningOverlay>();
+            overlay.onMultiComplete = onMultiComplete;
+            overlay.isMultiOpen = true;
+            overlay.BuildMulti();
+            return overlay;
+        }
+
+        void Build(int rollCount = 1)
         {
             // ---- Root canvas ----
             overlayRoot = new GameObject("CaseCanvas");
             Canvas canvas = overlayRoot.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 200;
-            overlayRoot.AddComponent<CanvasScaler>();
+
+            // Scale canvas to 1920x1080 reference resolution
+            CanvasScaler scaler = overlayRoot.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
             overlayRoot.AddComponent<GraphicRaycaster>();
 
-            // ---- Panel (bottom right) ----
+            // ---- Panel (centered) ----
+            // Height scales with roll count for multi-roll later
+            float totalPanelHeight = (PanelHeight + 10f) * rollCount + 20f;
+
             GameObject panel = new GameObject("Panel");
             panel.transform.SetParent(overlayRoot.transform, false);
             RectTransform panelRt = panel.AddComponent<RectTransform>();
-            panelRt.anchorMin = new Vector2(1, 0);
-            panelRt.anchorMax = new Vector2(1, 0);
-            panelRt.pivot = new Vector2(1, 0);
-            panelRt.sizeDelta = new Vector2(PanelWidth + 20f, PanelHeight + 20f);
-            panelRt.anchoredPosition = new Vector2(-20f, 20f);
+            panelRt.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRt.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRt.pivot = new Vector2(0.5f, 0.5f);
+            panelRt.sizeDelta = new Vector2(PanelWidth + 40f, totalPanelHeight);
+            panelRt.anchoredPosition = Vector2.zero;
 
             Image panelBg = panel.AddComponent<Image>();
             panelBg.color = new Color(0.05f, 0.05f, 0.05f, 0.95f);
 
+            // ---- Reel container (vertical layout for multiple reels) ----
+            GameObject reelContainer = new GameObject("ReelContainer");
+            reelContainer.transform.SetParent(panel.transform, false);
+            RectTransform containerRt = reelContainer.AddComponent<RectTransform>();
+            containerRt.anchorMin = new Vector2(0.5f, 0.5f);
+            containerRt.anchorMax = new Vector2(0.5f, 0.5f);
+            containerRt.pivot = new Vector2(0.5f, 0.5f);
+            containerRt.sizeDelta = new Vector2(PanelWidth, totalPanelHeight - 20f);
+            containerRt.anchoredPosition = Vector2.zero;
+
+            // Store container reference for multi-roll
+            reelContainerRt = containerRt;
+
+            // ---- Build first reel (single roll for now) ----
+            BuildReel(reelContainer, 0);
+
+            StartCoroutine(SpinReel());
+        }
+
+        void BuildReel(GameObject container, int reelIndex)
+        {
+            float reelSlotHeight = PanelHeight + 10f;
+            float yOffset = -(reelIndex * reelSlotHeight);
+
             // ---- Viewport ----
-            GameObject viewport = new GameObject("Viewport");
-            viewport.transform.SetParent(panel.transform, false);
+            GameObject viewport = new GameObject($"Viewport_{reelIndex}");
+            viewport.transform.SetParent(container.transform, false);
             RectTransform vpRt = viewport.AddComponent<RectTransform>();
-            vpRt.anchorMin = new Vector2(0.5f, 0.5f);
-            vpRt.anchorMax = new Vector2(0.5f, 0.5f);
-            vpRt.pivot = new Vector2(0.5f, 0.5f);
+            vpRt.anchorMin = new Vector2(0.5f, 1f);
+            vpRt.anchorMax = new Vector2(0.5f, 1f);
+            vpRt.pivot = new Vector2(0.5f, 1f);
             vpRt.sizeDelta = new Vector2(PanelWidth, ItemHeight + 20f);
-            vpRt.anchoredPosition = Vector2.zero;
+            vpRt.anchoredPosition = new Vector2(0, yOffset);
             viewport.AddComponent<RectMask2D>();
 
             // ---- Reel strip ----
-            GameObject strip = new GameObject("ReelStrip");
+            GameObject strip = new GameObject($"ReelStrip_{reelIndex}");
             strip.transform.SetParent(viewport.transform, false);
-            reelStrip = strip.AddComponent<RectTransform>();
-            reelStrip.anchorMin = new Vector2(0, 0.5f);
-            reelStrip.anchorMax = new Vector2(0, 0.5f);
-            reelStrip.pivot = new Vector2(0, 0.5f);
-            reelStrip.anchoredPosition = Vector2.zero;
+            RectTransform stripRt = strip.AddComponent<RectTransform>();
+            stripRt.anchorMin = new Vector2(0, 0.5f);
+            stripRt.anchorMax = new Vector2(0, 0.5f);
+            stripRt.pivot = new Vector2(0, 0.5f);
+            stripRt.anchoredPosition = Vector2.zero;
 
-            // ---- Single center selector line ----
-            GameObject dividerObj = CreateLine(panel, Vector2.zero, new Vector2(2f, ItemHeight + 24f));
-            dividerRect = dividerObj.GetComponent<RectTransform>();
+            // Store reference for single roll — multi-roll will use a list
+            reelStrip = stripRt;
 
-            StartCoroutine(SpinReel());
+            // ---- Center divider line ----
+            GameObject dividerObj = new GameObject("Divider");
+            dividerObj.transform.SetParent(container.transform, false);
+            RectTransform divRt = dividerObj.AddComponent<RectTransform>();
+            divRt.anchorMin = new Vector2(0.5f, 1f);
+            divRt.anchorMax = new Vector2(0.5f, 1f);
+            divRt.pivot = new Vector2(0.5f, 0.5f);
+            divRt.sizeDelta = new Vector2(2f, ItemHeight + 24f);
+            divRt.anchoredPosition = new Vector2(0, yOffset - (ItemHeight * 0.5f) - 10f);
+            dividerObj.AddComponent<Image>().color = Color.white;
+
+            dividerRect = divRt;
         }
 
         GameObject CreateLine(GameObject parent, Vector2 pos, Vector2 size)
@@ -354,6 +422,239 @@ namespace BRCGambling
             barRt.anchoredPosition = Vector2.zero;
             Image barImg = bar.AddComponent<Image>();
             barImg.color = rarityColor;
+
+            return item;
+        }
+
+        void BuildMulti()
+        {
+            // ---- Root canvas ----
+            overlayRoot = new GameObject("CaseCanvas");
+            Canvas canvas = overlayRoot.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 200;
+
+            CanvasScaler scaler = overlayRoot.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            overlayRoot.AddComponent<GraphicRaycaster>();
+
+            float columnWidth = MultiPanelWidth + 40f;
+            float totalWidth = columnWidth * 2f + MultiColumnGap;
+            float reelSlotHeight = MultiItemHeight + 30f;
+            float totalHeight = reelSlotHeight * 5f + 40f;
+
+            // ---- Main panel (centered) ----
+            GameObject panel = new GameObject("Panel");
+            panel.transform.SetParent(overlayRoot.transform, false);
+            RectTransform panelRt = panel.AddComponent<RectTransform>();
+            panelRt.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRt.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRt.pivot = new Vector2(0.5f, 0.5f);
+            panelRt.sizeDelta = new Vector2(totalWidth, totalHeight);
+            panelRt.anchoredPosition = Vector2.zero;
+            panel.AddComponent<Image>().color = new Color(0.05f, 0.05f, 0.05f, 0.95f);
+
+            // Build left column (reels 0-4) and right column (reels 5-9)
+            for (int col = 0; col < 2; col++)
+            {
+                float colX = col == 0
+                    ? -(columnWidth * 0.5f + MultiColumnGap * 0.5f)
+                    : (columnWidth * 0.5f + MultiColumnGap * 0.5f);
+
+                for (int row = 0; row < 5; row++)
+                {
+                    int reelIndex = col * 5 + row;
+                    float rowY = (totalHeight * 0.5f) - 20f - (row * reelSlotHeight) - reelSlotHeight * 0.5f;
+
+                    // Viewport
+                    GameObject viewport = new GameObject($"Viewport_{reelIndex}");
+                    viewport.transform.SetParent(panel.transform, false);
+                    RectTransform vpRt = viewport.AddComponent<RectTransform>();
+                    vpRt.anchorMin = new Vector2(0.5f, 0.5f);
+                    vpRt.anchorMax = new Vector2(0.5f, 0.5f);
+                    vpRt.pivot = new Vector2(0.5f, 0.5f);
+                    vpRt.sizeDelta = new Vector2(MultiPanelWidth, MultiItemHeight + 10f);
+                    vpRt.anchoredPosition = new Vector2(colX, rowY);
+                    viewport.AddComponent<RectMask2D>();
+
+                    // Reel strip
+                    GameObject strip = new GameObject($"ReelStrip_{reelIndex}");
+                    strip.transform.SetParent(viewport.transform, false);
+                    RectTransform stripRt = strip.AddComponent<RectTransform>();
+                    stripRt.anchorMin = new Vector2(0, 0.5f);
+                    stripRt.anchorMax = new Vector2(0, 0.5f);
+                    stripRt.pivot = new Vector2(0, 0.5f);
+                    stripRt.anchoredPosition = Vector2.zero;
+                    multiReelStrips.Add(stripRt);
+
+                    // Divider
+                    GameObject divObj = new GameObject($"Divider_{reelIndex}");
+                    divObj.transform.SetParent(panel.transform, false);
+                    RectTransform divRt = divObj.AddComponent<RectTransform>();
+                    divRt.anchorMin = new Vector2(0.5f, 0.5f);
+                    divRt.anchorMax = new Vector2(0.5f, 0.5f);
+                    divRt.pivot = new Vector2(0.5f, 0.5f);
+                    divRt.sizeDelta = new Vector2(2f, MultiItemHeight + 14f);
+                    divRt.anchoredPosition = new Vector2(colX, rowY);
+                    divObj.AddComponent<Image>().color = Color.white;
+                    multiDividers.Add(divRt);
+                }
+            }
+
+            StartCoroutine(SpinMultiReel());
+        }
+        IEnumerator SpinMultiReel()
+        {
+            float stepX = MultiItemWidth + MultiItemSpacing;
+            int totalItems = 40;
+            int landingIndex = totalItems - 8;
+
+            var results = new List<(RewardTier tier, EffectDefinition effect)>();
+            var reelCoroutines = new List<Coroutine>();
+
+            // Pre-roll all 10 results
+            var rolledTiers = new List<RewardTier>();
+            var rolledEffects = new List<EffectDefinition>();
+
+            for (int i = 0; i < 10; i++)
+            {
+                RewardTier tier = ReelPool[Random.Range(0, ReelPool.Count)];
+                var pool = EffectRegistry.GetPool(tier);
+                EffectDefinition effect = pool.Count > 0 ? pool[Random.Range(0, pool.Count)] : null;
+                rolledTiers.Add(tier);
+                rolledEffects.Add(effect);
+            }
+
+            // Spin each reel with stagger
+            bool[] reelDone = new bool[10];
+
+            for (int i = 0; i < 10; i++)
+            {
+                int capturedI = i;
+                StartCoroutine(SpinSingleMultiReel(
+                    multiReelStrips[capturedI],
+                    multiDividers[capturedI],
+                    rolledTiers[capturedI],
+                    stepX,
+                    totalItems,
+                    landingIndex,
+                    () => reelDone[capturedI] = true
+                ));
+
+                yield return new WaitForSeconds(MultiStaggerDelay);
+            }
+
+            // Wait for all reels to finish
+            bool allDone = false;
+            while (!allDone)
+            {
+                allDone = true;
+                for (int i = 0; i < 10; i++)
+                    if (!reelDone[i]) { allDone = false; break; }
+                yield return null;
+            }
+
+            yield return new WaitForSeconds(3f);
+
+            // Build result list
+            for (int i = 0; i < 10; i++)
+                results.Add((rolledTiers[i], rolledEffects[i]));
+
+            onMultiComplete?.Invoke(results);
+            Destroy(overlayRoot);
+            Destroy(gameObject);
+        }
+
+        IEnumerator SpinSingleMultiReel(RectTransform strip, RectTransform divider, RewardTier result, float stepX, int totalItems, int landingIndex, System.Action onDone)
+        {
+            List<RewardTier> items = new List<RewardTier>();
+            for (int i = 0; i < totalItems; i++)
+                items.Add(ReelPool[Random.Range(0, ReelPool.Count)]);
+            items[landingIndex] = result;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                GameObject item = CreateMultiReelItem(items[i]);
+                item.transform.SetParent(strip, false);
+                item.GetComponent<RectTransform>().anchoredPosition = new Vector2(i * stepX, 0);
+            }
+
+            strip.sizeDelta = new Vector2(items.Count * stepX, MultiItemHeight);
+
+            float targetX = (MultiPanelWidth / 2f) - (landingIndex * stepX) - MultiItemWidth;
+            float duration = 5f;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+                float eased = 1f - Mathf.Pow(1f - t, 3f);
+                strip.anchoredPosition = new Vector2(Mathf.Lerp(0f, targetX, eased), 0);
+                yield return null;
+            }
+
+            strip.anchoredPosition = new Vector2(targetX, 0);
+            onDone?.Invoke();
+        }
+
+        GameObject CreateMultiReelItem(RewardTier tier)
+        {
+            Color rarityColor = tier switch
+            {
+                RewardTier.Common => new Color(0.27f, 0.53f, 1f),
+                RewardTier.Rare => new Color(0.8f, 0.27f, 1f),
+                RewardTier.Epic => new Color(1f, 0.27f, 0.27f),
+                RewardTier.Legendary => new Color(1f, 0.84f, 0f),
+                _ => Color.white
+            };
+
+            string label = tier switch
+            {
+                RewardTier.Common => "COM",
+                RewardTier.Rare => "RARE",
+                RewardTier.Epic => "EPIC",
+                RewardTier.Legendary => "LEG",
+                _ => "?"
+            };
+
+            GameObject item = new GameObject($"Item_{tier}");
+            item.AddComponent<RectTransform>().sizeDelta = new Vector2(MultiItemWidth, MultiItemHeight);
+
+            GameObject card = new GameObject("Card");
+            card.transform.SetParent(item.transform, false);
+            RectTransform cardRt = card.AddComponent<RectTransform>();
+            cardRt.anchorMin = Vector2.zero;
+            cardRt.anchorMax = Vector2.one;
+            cardRt.offsetMin = Vector2.zero;
+            cardRt.offsetMax = new Vector2(0, -14f);
+            card.AddComponent<Image>().color = new Color(0.15f, 0.15f, 0.15f, 1f);
+
+            GameObject txt = new GameObject("Label");
+            txt.transform.SetParent(card.transform, false);
+            RectTransform txtRt = txt.AddComponent<RectTransform>();
+            txtRt.anchorMin = Vector2.zero;
+            txtRt.anchorMax = Vector2.one;
+            txtRt.offsetMin = Vector2.zero;
+            txtRt.offsetMax = Vector2.zero;
+            TMPro.TextMeshProUGUI tmp = txt.AddComponent<TMPro.TextMeshProUGUI>();
+            tmp.text = label;
+            tmp.alignment = TMPro.TextAlignmentOptions.Center;
+            tmp.fontSize = 14;
+            tmp.color = Color.white;
+
+            GameObject bar = new GameObject("RarityBar");
+            bar.transform.SetParent(item.transform, false);
+            RectTransform barRt = bar.AddComponent<RectTransform>();
+            barRt.anchorMin = new Vector2(0, 0);
+            barRt.anchorMax = new Vector2(1, 0);
+            barRt.pivot = new Vector2(0.5f, 0);
+            barRt.sizeDelta = new Vector2(0, 12f);
+            barRt.anchoredPosition = Vector2.zero;
+            bar.AddComponent<Image>().color = rarityColor;
 
             return item;
         }

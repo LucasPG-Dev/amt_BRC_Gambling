@@ -5,7 +5,8 @@ namespace BRCGambling
 {
     public static class GamblingManager
     {
-        //FOR TESTING PURPOSES ONLY - DELETE FOR FINAL BUILD - public const int SpinCost = 100;
+        public static int ConsecutiveLosses = 0;
+        public static double? BestTimeAtRaceStart = null;
         public static int SpinCost => 100;
         public static int StartingRep => 500;
         public static int Rep
@@ -13,10 +14,12 @@ namespace BRCGambling
             get => GamblingSaveData.Instance?.Rep ?? 0;
             set
             {
+                UnityEngine.Debug.Log($"[BRCGambling] Setting REP to {value}, Instance null={GamblingSaveData.Instance == null}");
                 if (GamblingSaveData.Instance != null)
                 {
                     GamblingSaveData.Instance.Rep = value;
                     GamblingSaveData.Instance.Save();
+                    UnityEngine.Debug.Log($"[BRCGambling] Saved REP={GamblingSaveData.Instance.Rep}");
                 }
             }
         }
