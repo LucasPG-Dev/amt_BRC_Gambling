@@ -1,0 +1,11 @@
+{
+  "name": "BRCGambling",
+  "version_number": "1.0.0",
+  "website_url": "",
+  "description": "Spray Casino gambling mod for BRC",
+  "dependencies": [
+    "BepInEx-BepInExPack-5.4.2100",
+    "CommonAPI-CommonAPI-1.3.3",
+    "Freesoul-All_City_Network"
+  ]
+}

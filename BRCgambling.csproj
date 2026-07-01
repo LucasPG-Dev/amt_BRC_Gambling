@@ -1,0 +1,66 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<AssemblyName>BRCGambling</AssemblyName>
+		<RootNamespace>BRCGambling</RootNamespace>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Reference Include="0Harmony">
+		  <HintPath>..\..\..\..\AppData\Roaming\r2modmanPlus-local\BombRushCyberfunk\profiles\Default\BepInEx\core\0Harmony.dll</HintPath>
+		</Reference>
+		<Reference Include="BepInEx">
+			<HintPath>C:\Users\Usuario\AppData\Roaming\r2modmanPlus-local\BombRushCyberfunk\profiles\Default\BepInEx\core\BepInEx.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="BepInEx.Harmony">
+		  <HintPath>..\..\..\..\AppData\Roaming\r2modmanPlus-local\BombRushCyberfunk\profiles\Default\BepInEx\core\BepInEx.Harmony.dll</HintPath>
+		</Reference>
+		<Reference Include="BombRushMP.Common">
+		  <HintPath>..\..\..\..\AppData\Roaming\r2modmanPlus-local\BombRushCyberfunk\profiles\Default\BepInEx\plugins\Freesoul-All_City_Network\BombRushMP.Common.dll</HintPath>
+		</Reference>
+		<Reference Include="BombRushMP.Plugin">
+		  <HintPath>..\..\..\..\AppData\Roaming\r2modmanPlus-local\BombRushCyberfunk\profiles\Default\BepInEx\plugins\Freesoul-All_City_Network\BombRushMP.Plugin.dll</HintPath>
+		</Reference>
+		<Reference Include="CommonAPI">
+			<HintPath>C:\Users\Usuario\AppData\Roaming\r2modmanPlus-local\BombRushCyberfunk\profiles\Default\BepInEx\plugins\LazyDuchess-CommonAPI\CommonAPI.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.TextMeshPro">
+		  <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.AssetBundleModule">
+		  <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.CoreModule">
+			<HintPath>C:\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="UnityEngine">
+			<HintPath>C:\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\UnityEngine.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="UnityEngine.ImageConversionModule">
+		  <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.ParticleSystemModule">
+		  <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.UI">
+			<HintPath>C:\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\UnityEngine.UI.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Assembly-CSharp">
+			<HintPath>C:\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\Assembly-CSharp.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="UnityEngine.UIModule">
+		  <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BombRushCyberfunk\Bomb Rush Cyberfunk_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+		</Reference>
+		<Reference Include="WallPlant">
+		  <HintPath>..\..\..\..\AppData\Roaming\r2modmanPlus-local\BombRushCyberfunk\profiles\Default\BepInEx\plugins\LazyDuchess-WallPlant\WallPlant.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+</Project>
