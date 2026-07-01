@@ -3,3 +3,5 @@ obj/
 .vs/
 *.user
 packages/
+*.zip
+DevKeyStuff.dll
